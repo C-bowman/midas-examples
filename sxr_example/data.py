@@ -20,13 +20,6 @@ def te_profile(R):
 R_min, R_max = 0.3, 1.5
 
 
-# import matplotlib.pyplot as plt
-# plt.plot(field_axis, ne_profile * te_profile)
-# plt.grid()
-# plt.ylim([0., None])
-# plt.show()
-
-
 # generate synthetic data for the interferometer
 inter_axis = linspace(R_min, R_max, 64)
 inter_model = InterferometerModel(radius=inter_axis)
@@ -36,7 +29,7 @@ inter_data = inter_data_clean + rng.normal(scale=inter_sigma)
 print("interferometer", inter_data_clean, inter_sigma)
 
 # generate synthetic data for the SXR emissivity
-brem_axis = linspace(R_min, R_max, 16)
+brem_axis = linspace(R_min, R_max, 28)
 brem_model = BremstrahlModel(radius=brem_axis)
 brem_data_clean = brem_model.predictions(
     te=te_profile(brem_axis),

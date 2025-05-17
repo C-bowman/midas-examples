@@ -60,7 +60,3 @@ class SmoothnessPrior(BasePrior):
             self.field_name: dPdf,
             self.param_name: dPds
         }
-
-
-class BoundaryPrior(BasePrior):
-    self.field_requests = [FieldRequest(name="te", coordinates={"radius": radius})]
