@@ -48,9 +48,6 @@ field_models = [
 PlasmaState.specify_field_models(field_models)
 
 
-# ne_smoother = SmoothnessPrior(field="ne", radius=field_axis)
-# te_smoother = SmoothnessPrior(field="te", radius=field_axis)
-
 from midas.priors import GaussianProcessPrior
 from inference.gp.covariance import SquaredExponential
 from inference.gp.mean import ConstantMean
@@ -69,8 +66,9 @@ ne_gp = GaussianProcessPrior(
     name="density_gp"
 )
 
-
-posterior = Posterior(components=[brem_likelihood, inter_likelihood, pe_likelihood, ne_gp, te_gp])
+PlasmaState.build_parametrisation(
+    components=[brem_likelihood, inter_likelihood, pe_likelihood, ne_gp, te_gp]
+)
 
 print(PlasmaState.parameter_names)
 for name, slice in PlasmaState.slices.items():

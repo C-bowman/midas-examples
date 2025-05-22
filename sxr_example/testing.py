@@ -1,10 +1,10 @@
 from data import brem_data, brem_data_clean, brem_axis
 from data import pe_data, pe_data_clean, pe_axis
 from data import test_axis, test_ne, test_te, te_profile, ne_profile
-from posterior import posterior, field_axis, brem_likelihood, pe_likelihood
+from posterior import field_axis, brem_likelihood, pe_likelihood
 
 from midas.state import PlasmaState
-from numpy import array, zeros, exp
+from numpy import array, zeros, exp, ptp
 
 
 te_guess = 500 * exp(-0.5 * ((field_axis - 0.9) / 0.3)**2)
@@ -26,9 +26,9 @@ initial_guess = PlasmaState.merge_parameters(
     }
 )
 
-
-print(">>>>", posterior(initial_guess))
-print(posterior.component_log_probabilities(initial_guess))
+from midas.posterior import Posterior
+print(">>>>", Posterior.log_probability(initial_guess))
+print(Posterior.component_log_probabilities(initial_guess))
 # exit()
 
 
@@ -64,54 +64,89 @@ upper_bounds = PlasmaState.merge_parameters(
 
 bounds = [(l, u) for l, u in zip(lower_bounds, upper_bounds)]
 
-from inference.approx import conditional_sample
-from inference.mcmc import EnsembleSampler, Bounds
+from inference.approx import conditional_sample, get_conditionals
+from inference.mcmc import EnsembleSampler, Bounds, HamiltonianChain
 
 
 from scipy.optimize import minimize
 result = minimize(
-    fun=posterior.cost,
+    fun=Posterior.cost,
     x0=initial_guess,
-    jac=posterior.cost_gradient,
+    jac=Posterior.cost_gradient,
     bounds=bounds
 )
 
 
 bounds_class = Bounds(lower=lower_bounds, upper=upper_bounds)
 
-cond_sample = conditional_sample(
-    posterior=posterior,
+# cond_sample = conditional_sample(
+#     posterior=Posterior.log_probability,
+#     bounds=bounds,
+#     conditioning_point=result.x,
+#     n_samples=1000
+# )
+#
+# print(cond_sample.shape)
+# p = array([Posterior.log_probability(samp) for samp in cond_sample])
+# print(p.shape)
+
+# cond_sample = cond_sample[p.argsort(), :]
+
+x_cond, p_cond = get_conditionals(
+    posterior=Posterior.log_probability,
     bounds=bounds,
-    conditioning_point=result.x,
-    n_samples=1000
+    conditioning_point=result.x
 )
 
-print(cond_sample.shape)
-p = array([posterior(samp) for samp in cond_sample])
-print(p.shape)
+conditional_widths = zeros(len(bounds))
+for i in range(len(bounds)):
+    extent = x_cond[p_cond[:, i] > p_cond[:, i].max() * 0.1, i]
+    conditional_widths[i] = ptp(extent)
 
-cond_sample = cond_sample[p.argsort(), :]
-
-
-
-chain = EnsembleSampler(
-    posterior=posterior,
-    starting_positions=cond_sample[:, -200:],
-    bounds=bounds_class
+chain = HamiltonianChain(
+    posterior=Posterior.log_probability,
+    start=result.x,
+    bounds=bounds_class,
+    grad=Posterior.gradient,
+    epsilon=0.04,
+    inverse_mass=conditional_widths ** 2,
+    display_progress=False
 )
+chain.steps = 30
 
-chain.advance(100)
+chain.advance(2500)
 chain.plot_diagnostics()
+chain.trace_plot()
+
+sample = chain.get_sample(burn=500, thin=2)
+print(sample.shape)
 
 
+params_sample = PlasmaState.split_samples(parameter_samples=sample)
 
-ensemble_sample = chain.get_sample()
-ensemble_probs = chain.get_probabilities()
-ensemble_map = ensemble_sample[ensemble_probs.argmax(), :]
+from inference.pdf import sample_hdi
+samples_hdi_95 = {
+    name: sample_hdi(samples, fraction=0.95) for name, samples in params_sample.items()
+}
+
+samples_mean = {name: samples.mean(axis=0) for name, samples in params_sample.items()}
+
+# chain = EnsembleSampler(
+#     posterior=Posterior.log_probability,
+#     starting_positions=cond_sample[:, -200:],
+#     bounds=bounds_class
+# )
+#
+# chain.advance(100)
+# chain.plot_diagnostics()
+#
+# ensemble_sample = chain.get_sample()
+# ensemble_probs = chain.get_probabilities()
+# ensemble_map = ensemble_sample[ensemble_probs.argmax(), :]
 
 
-print(ensemble_sample.shape)
-from scipy.optimize import minimize
+# print(ensemble_sample.shape)
+# from scipy.optimize import minimize
 # bounds = [(1e-6, None)] * PlasmaState.n_params
 # bounds[-2] = (10., None)
 # bounds[-1] = (10., None)
@@ -129,26 +164,30 @@ print(PlasmaState.slices)
 
 import matplotlib.pyplot as plt
 
-params = PlasmaState.split_parameters(ensemble_map)
+params = PlasmaState.split_parameters(result.x)
 
 print("\n\n>>>>>>>>>>>>>>>>")
-print("initial guess prob", posterior(initial_guess))
-print("bfgs solution prob", posterior(result.x))
+print("initial guess prob", Posterior.log_probability(initial_guess))
+print("bfgs solution prob", Posterior.log_probability(result.x))
 print("\n\n")
 
 print(params)
 
 
-plt.plot(test_axis, test_ne, label="test values")
-plt.plot(field_axis, params["ne"], label="inferred")
+plt.plot(test_axis, test_ne, label="test values", c="black", ls="dotted")
+plt.plot(field_axis, params["ne"], label="MAP estimate", c="C0", ls="dashed", lw=2)
+plt.plot(field_axis, samples_mean["ne"], label="sample mean", c="C0", lw=2)
+plt.fill_between(field_axis, *samples_hdi_95["ne"], alpha=0.3, color="C0")
 plt.ylabel("electron density")
 plt.xlabel("major radius")
 plt.grid()
 plt.legend()
 plt.show()
 
-plt.plot(test_axis, test_te, label="test values")
-plt.plot(field_axis, params["te"], label="inferred")
+plt.plot(test_axis, test_te, color="black", lw=2, ls="dotted", label="test values")
+plt.plot(field_axis, params["te"], color="red", lw=2, ls="dashed", label="MAP estimate")
+plt.plot(field_axis, samples_mean["te"], color="red", lw=2, label="sample mean")
+plt.fill_between(field_axis, *samples_hdi_95["te"], color="red", alpha=0.3)
 plt.ylabel("electron temperature (eV)")
 plt.xlabel("major radius")
 plt.grid()
@@ -157,7 +196,7 @@ plt.show()
 
 
 # print(posterior(ensemble_map))
-posterior(result.x)
+Posterior.log_probability(result.x)
 
 
 brem_fit = brem_likelihood.get_predictions()

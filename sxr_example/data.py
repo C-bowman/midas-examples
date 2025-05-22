@@ -26,7 +26,6 @@ inter_model = InterferometerModel(radius=inter_axis)
 inter_data_clean = inter_model.predictions(ne=ne_profile(inter_axis))
 inter_sigma = array([2.])
 inter_data = inter_data_clean + rng.normal(scale=inter_sigma)
-print("interferometer", inter_data_clean, inter_sigma)
 
 # generate synthetic data for the SXR emissivity
 brem_axis = linspace(R_min, R_max, 28)
@@ -50,10 +49,6 @@ pe_data_clean = pe_model.predictions(
 pe_sigma = pe_data_clean * 0.05 + pe_data_clean.max() * 0.02
 pe_data = abs(pe_data_clean + rng.normal(size=pe_data_clean.size, scale=pe_sigma))
 
-# import matplotlib.pyplot as plt
-# plt.plot(pe_axis, pe_data)
-# plt.grid()
-# plt.show()
 
 test_axis = linspace(R_min, R_max, 64)
 test_te = te_profile(R=test_axis)
