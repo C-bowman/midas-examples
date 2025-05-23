@@ -108,7 +108,7 @@ chain = HamiltonianChain(
     start=result.x,
     bounds=bounds_class,
     grad=Posterior.gradient,
-    epsilon=0.04,
+    epsilon=0.05,
     inverse_mass=conditional_widths ** 2,
     display_progress=False
 )
@@ -173,25 +173,28 @@ print("\n\n")
 
 print(params)
 
+fig = plt.figure(figsize=(12, 4))
 
-plt.plot(test_axis, test_ne, label="test values", c="black", ls="dotted")
-plt.plot(field_axis, params["ne"], label="MAP estimate", c="C0", ls="dashed", lw=2)
-plt.plot(field_axis, samples_mean["ne"], label="sample mean", c="C0", lw=2)
-plt.fill_between(field_axis, *samples_hdi_95["ne"], alpha=0.3, color="C0")
-plt.ylabel("electron density")
-plt.xlabel("major radius")
-plt.grid()
-plt.legend()
-plt.show()
+ax1 = fig.add_subplots(1, 2, 1)
+ax1.plot(test_axis, test_ne, label="test values", c="black", ls="dotted")
+ax1.plot(field_axis, params["ne"], label="MAP estimate", c="C0", ls="dashed", lw=2)
+ax1.plot(field_axis, samples_mean["ne"], label="sample mean", c="C0", lw=2)
+ax1.fill_between(field_axis, *samples_hdi_95["ne"], alpha=0.3, color="C0")
+ax1.set_ylabel("electron density")
+ax1.set_xlabel("major radius")
+ax1.grid()
+ax1.legend()
 
-plt.plot(test_axis, test_te, color="black", lw=2, ls="dotted", label="test values")
-plt.plot(field_axis, params["te"], color="red", lw=2, ls="dashed", label="MAP estimate")
-plt.plot(field_axis, samples_mean["te"], color="red", lw=2, label="sample mean")
-plt.fill_between(field_axis, *samples_hdi_95["te"], color="red", alpha=0.3)
-plt.ylabel("electron temperature (eV)")
-plt.xlabel("major radius")
-plt.grid()
-plt.legend()
+ax2 = fig.add_subplots(1, 2, 2)
+ax2.plot(test_axis, test_te, color="black", lw=2, ls="dotted", label="test values")
+ax2.plot(field_axis, params["te"], color="red", lw=2, ls="dashed", label="MAP estimate")
+ax2.plot(field_axis, samples_mean["te"], color="red", lw=2, label="sample mean")
+ax2.fill_between(field_axis, *samples_hdi_95["te"], color="red", alpha=0.3)
+ax2.set_ylabel("electron temperature (eV)")
+ax2.set_xlabel("major radius")
+ax2.grid()
+ax2.legend()
+
 plt.show()
 
 
