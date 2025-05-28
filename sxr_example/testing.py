@@ -16,8 +16,8 @@ ne_guess = 0.7 * exp(-0.5 * ((field_axis - 0.9) / 0.3)**2)
 
 initial_guess = PlasmaState.merge_parameters(
     {
-        "te": te_guess,
-        "ne": ne_guess,
+        "te_linear_basis": te_guess,
+        "ne_linear_basis": ne_guess,
         "background": 3.0,
         "te_cov_hyperpars": [4., -3],
         "ne_cov_hyperpars": [-0.2, -3],
@@ -40,8 +40,8 @@ plt.show()
 
 lower_bounds = PlasmaState.merge_parameters(
     {
-        "te": 1e-6,
-        "ne": 1e-6,
+        "te_linear_basis": 1e-6,
+        "ne_linear_basis": 1e-6,
         "background": 1e-6,
         "te_cov_hyperpars": [-2, -5],
         "ne_cov_hyperpars": [-2, -5],
@@ -52,8 +52,8 @@ lower_bounds = PlasmaState.merge_parameters(
 
 upper_bounds = PlasmaState.merge_parameters(
     {
-        "te": 1200.,
-        "ne": 10.,
+        "te_linear_basis": 1200.,
+        "ne_linear_basis": 10.,
         "background": 20.0,
         "te_cov_hyperpars": [6., -2.5],
         "ne_cov_hyperpars": [3., -2.5],
@@ -131,36 +131,9 @@ samples_hdi_95 = {
 
 samples_mean = {name: samples.mean(axis=0) for name, samples in params_sample.items()}
 
-# chain = EnsembleSampler(
-#     posterior=Posterior.log_probability,
-#     starting_positions=cond_sample[:, -200:],
-#     bounds=bounds_class
-# )
-#
-# chain.advance(100)
-# chain.plot_diagnostics()
-#
-# ensemble_sample = chain.get_sample()
-# ensemble_probs = chain.get_probabilities()
-# ensemble_map = ensemble_sample[ensemble_probs.argmax(), :]
-
-
-# print(ensemble_sample.shape)
-# from scipy.optimize import minimize
-# bounds = [(1e-6, None)] * PlasmaState.n_params
-# bounds[-2] = (10., None)
-# bounds[-1] = (10., None)
 
 print(PlasmaState.slices)
 
-# result = minimize(
-#     fun=posterior.cost,
-#     x0=initial_guess,
-#     jac=posterior.cost_gradient,
-#     bounds=bounds
-# )
-#
-# print(result)
 
 import matplotlib.pyplot as plt
 
@@ -175,21 +148,21 @@ print(params)
 
 fig = plt.figure(figsize=(12, 4))
 
-ax1 = fig.add_subplots(1, 2, 1)
+ax1 = fig.add_subplot(1, 2, 1)
 ax1.plot(test_axis, test_ne, label="test values", c="black", ls="dotted")
-ax1.plot(field_axis, params["ne"], label="MAP estimate", c="C0", ls="dashed", lw=2)
-ax1.plot(field_axis, samples_mean["ne"], label="sample mean", c="C0", lw=2)
-ax1.fill_between(field_axis, *samples_hdi_95["ne"], alpha=0.3, color="C0")
+ax1.plot(field_axis, params["ne_linear_basis"], label="MAP estimate", c="C0", ls="dashed", lw=2)
+ax1.plot(field_axis, samples_mean["ne_linear_basis"], label="sample mean", c="C0", lw=2)
+ax1.fill_between(field_axis, *samples_hdi_95["ne_linear_basis"], alpha=0.3, color="C0")
 ax1.set_ylabel("electron density")
 ax1.set_xlabel("major radius")
 ax1.grid()
 ax1.legend()
 
-ax2 = fig.add_subplots(1, 2, 2)
+ax2 = fig.add_subplot(1, 2, 2)
 ax2.plot(test_axis, test_te, color="black", lw=2, ls="dotted", label="test values")
-ax2.plot(field_axis, params["te"], color="red", lw=2, ls="dashed", label="MAP estimate")
-ax2.plot(field_axis, samples_mean["te"], color="red", lw=2, label="sample mean")
-ax2.fill_between(field_axis, *samples_hdi_95["te"], color="red", alpha=0.3)
+ax2.plot(field_axis, params["te_linear_basis"], color="red", lw=2, ls="dashed", label="MAP estimate")
+ax2.plot(field_axis, samples_mean["te_linear_basis"], color="red", lw=2, label="sample mean")
+ax2.fill_between(field_axis, *samples_hdi_95["te_linear_basis"], color="red", alpha=0.3)
 ax2.set_ylabel("electron temperature (eV)")
 ax2.set_xlabel("major radius")
 ax2.grid()
