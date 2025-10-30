@@ -19,9 +19,9 @@ class ParametrisedPsi:
         self.delta_max = triangularity
         self.psi_max = 1.05
 
-        n = 64
-        x = linspace(-2, 2, n)
-        y = linspace(-1.5, 1.5, n)
+        n = 128
+        x = linspace(-2, 3, n)
+        y = linspace(-2.5, 2.5, n)
         x_mesh, y_mesh = meshgrid(x, y, indexing="ij")
         theta = atan2(y_mesh, x_mesh)
         rho = sqrt(x_mesh ** 2 + y_mesh ** 2)
@@ -35,7 +35,7 @@ class ParametrisedPsi:
 
         self.spline = CloughTocher2DInterpolator(
             points=coords,
-            values=psi_norm
+            values=psi_norm,
         )
 
     def psi(self, rho):
@@ -69,8 +69,8 @@ if __name__ == "__main__":
     )
 
 
-    R_axis = linspace(0.25, 1.5, 32)
-    z_axis = linspace(-1., 1., 32)
+    R_axis = linspace(0.25, 1.8, 32)
+    z_axis = linspace(-1.8, 1.8, 32)
     R_mesh, z_mesh = meshgrid(R_axis, z_axis, indexing="ij")
 
 
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     psi_interp = psi.spline(points)
     psi_interp.resize(R_mesh.shape)
-
+    print(psi_interp.min(), psi_interp.max())
 
     plt.contourf(R_axis, z_axis, psi_interp.T, 32)
     plt.contour(R_axis, z_axis, psi_interp.T, levels=[1.0], colors=["red"])

@@ -1,5 +1,5 @@
 from midas.fields import FieldModel
-from numpy import ndarray, zeros, diff
+from numpy import array, ndarray, zeros, diff
 from midas.parameters import FieldRequest, ParameterVector
 from abc import ABC, abstractmethod
 
@@ -20,6 +20,11 @@ class PsiTransform(CoordinateTransform):
         self.inputs = {"R", "z"}
         self.outputs = {"psi"}
         self.spline = spline
+
+    def __call__(self, coords: coordinates) -> coordinates:
+        points = array([coords["R"], coords["z"]]).T
+        psi = self.spline(points)
+        return {"psi": psi}
 
 
 class PiecewiseFluxProfile(FieldModel):
