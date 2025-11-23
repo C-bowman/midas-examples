@@ -1,7 +1,7 @@
 from numpy import array, linspace, exp, zeros
 from numpy.random import default_rng
 from models import BremstrahlModel, PressureModel, InterferometerModel
-rng = default_rng(1234)
+rng = default_rng(137)
 
 
 def logistic(x, c, w):
