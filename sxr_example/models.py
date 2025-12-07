@@ -1,15 +1,15 @@
 from numpy import ndarray, sqrt, ones, fill_diagonal, zeros
 from midas.models import DiagnosticModel
-from midas.parameters import ParameterVector, FieldRequest
+from midas.parameters import Parameters, Fields, ParameterVector, FieldRequest
 
 
 class BremstrahlModel(DiagnosticModel):
     def __init__(self, radius: ndarray):
-        self.parameters = [ParameterVector(name="background", size=1)]
-        self.field_requests = [
+        self.parameters = Parameters(ParameterVector(name="background", size=1))
+        self.fields = Fields(
             FieldRequest(name="te", coordinates={"radius": radius}),
             FieldRequest(name="ne", coordinates={"radius": radius}),
-        ]
+        )
 
     def predictions(self, te: ndarray, ne: ndarray, background: float):
         return sqrt(te) * ne**2 + background
@@ -31,11 +31,11 @@ class BremstrahlModel(DiagnosticModel):
 
 class PressureModel(DiagnosticModel):
     def __init__(self, radius: ndarray):
-        self.parameters = []
-        self.field_requests = [
+        self.parameters = Parameters()
+        self.fields = Fields(
             FieldRequest(name="te", coordinates={"radius": radius}),
             FieldRequest(name="ne", coordinates={"radius": radius}),
-        ]
+        )
 
     def predictions(self, te: ndarray, ne: ndarray):
         return te * ne
@@ -55,10 +55,10 @@ class PressureModel(DiagnosticModel):
 
 class InterferometerModel(DiagnosticModel):
     def __init__(self, radius: ndarray):
-        self.parameters = []
-        self.field_requests = [
+        self.parameters = Parameters()
+        self.fields = Fields(
             FieldRequest(name="ne", coordinates={"radius": radius})
-        ]
+        )
 
     def predictions(self, ne: ndarray):
         return ne.sum()
