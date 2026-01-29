@@ -1,38 +1,24 @@
-from numpy import ndarray, exp, sqrt, log, linspace
+from numpy import ndarray, exp, sqrt, log, eye
 from midas.models import DiagnosticModel
 from midas import Fields, Parameters, FieldRequest
 
 
-class ThomsonTempModel(DiagnosticModel):
-    def __init__(self, radius: ndarray):
+class ThomsonModel(DiagnosticModel):
+    def __init__(self, radius: ndarray, field: str):
+        self.field_name = field
         self.fields = Fields(
-            FieldRequest(name="te", coordinates={"radius": radius})
+            FieldRequest(name=field, coordinates={"radius": radius})
         )
         self.parameters = Parameters()
+        self.jacobian = eye(radius.size)
 
-    def predictions(self, te: ndarray) -> ndarray:
-        return te
-
-    def predictions_and_jacobians(
-            self, te: ndarray, ne: ndarray, z_eff: ndarray
-    ) -> tuple[ndarray, dict[str, ndarray]]:
-        raise NotImplementedError()
-
-
-class ThomsonDensityModel(DiagnosticModel):
-    def __init__(self, radius: ndarray):
-        self.fields = Fields(
-            FieldRequest(name="ne", coordinates={"radius": radius})
-        )
-        self.parameters = Parameters()
-
-    def predictions(self, ne: ndarray) -> ndarray:
-        return ne
+    def predictions(self, fields) -> ndarray:
+        return fields[self.field_name]
 
     def predictions_and_jacobians(
-            self, te: ndarray, ne: ndarray, z_eff: ndarray
+            self, fields
     ) -> tuple[ndarray, dict[str, ndarray]]:
-        raise NotImplementedError()
+        return fields[self.field_name], {self.field_name: self.jacobian}
 
 
 class BremsstrahlungModel(DiagnosticModel):
@@ -132,3 +118,77 @@ def zeff_bremsstrahlung(
         result = zeff * factor
 
     return result
+
+
+
+
+def zeff_bremsstrahlung_alt(
+    Te: ndarray,
+    Ne: ndarray,
+    zeff: ndarray,
+    wavelength: float,
+    gaunt_approx="callahan",
+) -> ndarray:
+
+    gaunt_funct = {
+        "callahan": 1.35 * Te ** 0.15,
+        "carson": -4.7499 + 0.5513 * log(Te * wavelength) + 0.5513 * log(1e10),
+    }
+    gaunt = gaunt_funct[gaunt_approx]
+
+    constant = 1.89e-53
+    te_term =  exp(-1.24e-6 / (wavelength * Te)) / (sqrt(Te) * wavelength ** 2)
+    result = constant * zeff * te_term * gaunt * Ne**2
+    return result
+
+
+def zeff_bremsstrahlung_jacobian(
+    Te: ndarray,
+    Ne: ndarray,
+    zeff: ndarray,
+    wavelength: float,
+    gaunt_approx="callahan",
+) -> ndarray:
+
+    gaunt_funct = {
+        "callahan": 1.35 * Te ** 0.15,
+        "carson": -4.7499 + 0.5513 * log(Te * wavelength) + 0.5513 * log(1e10),
+    }
+    gaunt = gaunt_funct[gaunt_approx]
+
+    constant = 1.89e-53
+    te_term =  exp(-1.24e-6 / (wavelength * Te)) / (sqrt(Te) * wavelength ** 2)
+    result = constant * zeff * te_term * gaunt * Ne**2
+
+    jacobian = {
+        "te": ...,
+        "ne": 2 * constant * zeff * te_term * gaunt * Ne,
+        "zeff": constant * te_term * gaunt * Ne**2,
+    }
+
+    return result
+
+
+if __name__ == "__main__":
+    v1 = zeff_bremsstrahlung(Te=28.5, Ne=2.2e20, wavelength=567, zeff=2.12)
+    v2 = zeff_bremsstrahlung_alt(Te=28.5, Ne=2.2e20, wavelength=567e-9, zeff=2.12)
+    print(v1, v2, v1 / v2)
+
+    import matplotlib.pyplot as plt
+    from numpy import linspace
+
+    wavelength = 567e-9
+    Te = linspace(1, 200, 200)
+    cal = 1.35 * Te ** 0.15
+    car = -4.7499 + 0.5513 * log(Te * wavelength) + 0.5513 * log(1e10)
+
+
+    plt.plot(Te, cal)
+    plt.plot(Te, car)
+    plt.grid()
+    plt.show()
+
+    plt.plot(Te, cal / car)
+    plt.yscale("log")
+    plt.grid()
+    plt.show()
