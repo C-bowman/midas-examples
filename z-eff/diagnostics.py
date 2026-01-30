@@ -1,4 +1,5 @@
-from numpy import ndarray, exp, sqrt, log, eye
+from numpy import ndarray, exp, sqrt, log, eye, atleast_2d
+from scipy.sparse import dia_array
 from midas.models import DiagnosticModel
 from midas import Fields, Parameters, FieldRequest
 
@@ -122,7 +123,7 @@ def zeff_bremsstrahlung(
 
 
 
-def zeff_bremsstrahlung_alt(
+def bremsstrahlung_model(
     Te: ndarray,
     Ne: ndarray,
     zeff: ndarray,
@@ -132,7 +133,7 @@ def zeff_bremsstrahlung_alt(
 
     gaunt_funct = {
         "callahan": 1.35 * Te ** 0.15,
-        "carson": -4.7499 + 0.5513 * log(Te * wavelength) + 0.5513 * log(1e10),
+        "carson": 7.94425 + 0.5513 * log(Te * wavelength),
     }
     gaunt = gaunt_funct[gaunt_approx]
 
@@ -142,53 +143,72 @@ def zeff_bremsstrahlung_alt(
     return result
 
 
-def zeff_bremsstrahlung_jacobian(
+def bremsstrahlung_jacobian(
     Te: ndarray,
     Ne: ndarray,
     zeff: ndarray,
     wavelength: float,
     gaunt_approx="callahan",
-) -> ndarray:
+) -> tuple[ndarray, dict[str, ndarray]]:
 
     gaunt_funct = {
         "callahan": 1.35 * Te ** 0.15,
-        "carson": -4.7499 + 0.5513 * log(Te * wavelength) + 0.5513 * log(1e10),
+        "carson": 7.94425 + 0.5513 * log(Te * wavelength)
     }
-    gaunt = gaunt_funct[gaunt_approx]
+
+    gaunt_grad = {
+        "callahan": 0.2025 * Te ** -0.85,
+        "carson": 0.5513 / Te
+    }
+
+    G = gaunt_funct[gaunt_approx]
+    dG_dT = gaunt_grad[gaunt_approx]
 
     constant = 1.89e-53
-    te_term =  exp(-1.24e-6 / (wavelength * Te)) / (sqrt(Te) * wavelength ** 2)
-    result = constant * zeff * te_term * gaunt * Ne**2
+    k = 1.24e-6 / (wavelength * Te)
+    S =  exp(-k) / (sqrt(Te) * wavelength ** 2)
+    dS_dT = (k - 0.5) * S / Te
+
+    intermed = constant * S * G * Ne
+    dE_dz = intermed * Ne
+    result = dE_dz * zeff
 
     jacobian = {
-        "te": ...,
-        "ne": 2 * constant * zeff * te_term * gaunt * Ne,
-        "zeff": constant * te_term * gaunt * Ne**2,
+        "te": dia_array(constant * zeff * Ne**2 * (S * dG_dT + G * dS_dT)),
+        "ne": dia_array(2 * zeff * intermed),
+        "zeff": dia_array(dE_dz),
     }
 
-    return result
+    return result, jacobian
 
 
 if __name__ == "__main__":
     v1 = zeff_bremsstrahlung(Te=28.5, Ne=2.2e20, wavelength=567, zeff=2.12)
-    v2 = zeff_bremsstrahlung_alt(Te=28.5, Ne=2.2e20, wavelength=567e-9, zeff=2.12)
+    v2 = bremsstrahlung_model(Te=28.5, Ne=2.2e20, wavelength=567e-9, zeff=2.12)
     print(v1, v2, v1 / v2)
 
-    import matplotlib.pyplot as plt
-    from numpy import linspace
-
-    wavelength = 567e-9
-    Te = linspace(1, 200, 200)
-    cal = 1.35 * Te ** 0.15
-    car = -4.7499 + 0.5513 * log(Te * wavelength) + 0.5513 * log(1e10)
+    v1 = zeff_bremsstrahlung(Te=28.5, Ne=2.2e20, wavelength=567, zeff=2.12, gaunt_approx="carson")
+    v2 = bremsstrahlung_model(Te=28.5, Ne=2.2e20, wavelength=567e-9, zeff=2.12, gaunt_approx="carson")
+    print(v1, v2, v1 / v2)
 
 
-    plt.plot(Te, cal)
-    plt.plot(Te, car)
-    plt.grid()
-    plt.show()
+    Te = 42.1
+    Ne = 1.8e19
+    zeff = 2.12
+    wl = 567e-9
 
-    plt.plot(Te, cal / car)
-    plt.yscale("log")
-    plt.grid()
-    plt.show()
+    eps = 1e-6
+    dT = Te * eps
+    dN = Ne * eps
+    dz = zeff * eps
+
+    dE_dT = 0.5 * (bremsstrahlung_model(Te + dT, Ne, zeff, wl) -  bremsstrahlung_model(Te - dT, Ne, zeff, wl)) / dT
+    dE_dN = 0.5 * (bremsstrahlung_model(Te, Ne + dN, zeff, wl) -  bremsstrahlung_model(Te, Ne - dN, zeff, wl)) / dN
+    dE_dz = 0.5 * (bremsstrahlung_model(Te, Ne, zeff + dz, wl) -  bremsstrahlung_model(Te, Ne, zeff - dz, wl)) / dz
+
+    _, jac = bremsstrahlung_jacobian(atleast_2d(Te), atleast_2d(Ne), atleast_2d(zeff), wl)
+
+    from numpy import isclose
+    assert isclose(dE_dT, jac["te"].data)
+    assert isclose(dE_dN, jac["ne"].data)
+    assert isclose(dE_dz, jac["zeff"].data)
