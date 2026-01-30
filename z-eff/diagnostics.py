@@ -1,5 +1,4 @@
-from numpy import ndarray, exp, sqrt, log, eye
-from scipy.sparse import dia_array
+from numpy import ndarray, exp, sqrt, log, eye, diagflat
 from midas.models import DiagnosticModel
 from midas import Fields, Parameters, FieldRequest
 
@@ -17,7 +16,7 @@ class ThomsonModel(DiagnosticModel):
         return fields[self.field_name]
 
     def predictions_and_jacobians(
-            self, fields
+            self, **fields
     ) -> tuple[ndarray, dict[str, ndarray]]:
         return fields[self.field_name], {self.field_name: self.jacobian}
 
@@ -35,17 +34,22 @@ class BremsstrahlungModel(DiagnosticModel):
 
     def predictions(self, te: ndarray, ne: ndarray, z_eff: ndarray) -> ndarray:
         # call model / return predictions
-        return zeff_bremsstrahlung(
+        return bremsstrahlung_model(
             Te=te,
             Ne=ne,
-            wavelength=self.wavelength,
             zeff=z_eff,
+            wavelength=self.wavelength,
         )
 
     def predictions_and_jacobians(
             self, te: ndarray, ne: ndarray, z_eff: ndarray
     ) -> tuple[ndarray, dict[str, ndarray]]:
-        raise NotImplementedError()
+        return bremsstrahlung_jacobian(
+            Te=te,
+            Ne=ne,
+            zeff=z_eff,
+            wavelength=self.wavelength,
+        )
 
 
 def zeff_bremsstrahlung(
@@ -151,6 +155,7 @@ def bremsstrahlung_jacobian(
     gaunt_approx="callahan",
 ) -> tuple[ndarray, dict[str, ndarray]]:
 
+    # get the gaunt factor and its derivative
     gaunt_funct = {
         "callahan": 1.35 * Te ** 0.15,
         "carson": 7.94425 + 0.5513 * log(Te * wavelength)
@@ -164,24 +169,26 @@ def bremsstrahlung_jacobian(
     G = gaunt_funct[gaunt_approx]
     dG_dT = gaunt_grad[gaunt_approx]
 
+    # calculate the temperature-dependant term and its derivative
     constant = 1.89e-53
     k = 1.24e-6 / (wavelength * Te)
     S =  exp(-k) / (sqrt(Te) * wavelength ** 2)
     dS_dT = (k - 0.5) * S / Te
 
+    # calculate the bremsstrahlung and its jacobian
     intermed = constant * S * G * Ne
     dE_dz = intermed * Ne
-    result = dE_dz * zeff
-
     dE_dT = constant * zeff * Ne ** 2 * (S * dG_dT + G * dS_dT)
     dE_dN = 2 * zeff * intermed
+    bremstrahl = dE_dz * zeff
+
     jacobian = {
-        "te": dia_array(dE_dT.reshape([Te.size, 1])),
-        "ne": dia_array(dE_dN[:, None]),
-        "zeff": dia_array(dE_dz[:, None]),
+        "te": diagflat(dE_dT),
+        "ne": diagflat(dE_dN),
+        "z_eff": diagflat(dE_dz),
     }
 
-    return result, jacobian
+    return bremstrahl, jacobian
 
 
 if __name__ == "__main__":
@@ -211,11 +218,7 @@ if __name__ == "__main__":
 
     _, jac = bremsstrahlung_jacobian(Te, Ne, zeff, wl)
 
-
-
-    print(dE_dT / jac["te"].data.squeeze())
-
-    # from numpy import allclose
-    # assert allclose(dE_dT, jac["te"].data)
-    # assert allclose(dE_dN, jac["ne"].data)
-    # assert allclose(dE_dz, jac["zeff"].data)
+    from numpy import allclose, diagonal
+    assert allclose(dE_dT, diagonal(jac["te"]))
+    assert allclose(dE_dN, diagonal(jac["ne"]))
+    assert allclose(dE_dz, diagonal(jac["z_eff"]))

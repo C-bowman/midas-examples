@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     brem_model = BremsstrahlungModel(
         radius=measurement_radius,
-        wavelength=569.0,
+        wavelength=569e-9,
     )
 
     brem_diagnostic = DiagnosticLikelihood(
@@ -77,23 +77,23 @@ if __name__ == "__main__":
     from numpy import linspace
     from midas.models.fields import ExSplineField, CubicSplineField
 
-
-    spline_knots = linspace(1.25, 1.5, 6)
+    ts_knots = linspace(1.25, 1.5, 6)
     ne_field = ExSplineField(
         field_name="ne",
         axis_name="radius",
-        axis=spline_knots,
+        axis=ts_knots,
     )
 
     te_field = ExSplineField(
         field_name="te",
         axis_name="radius",
-        axis=spline_knots,
+        axis=ts_knots,
     )
 
+    z_eff_knots = linspace(1.25, 1.5, 5)
     z_eff_field = CubicSplineField(
         field_name="z_eff",
-        axis=spline_knots,
+        axis=z_eff_knots,
         axis_name="radius"
     )
 
@@ -112,9 +112,9 @@ if __name__ == "__main__":
     Find MAP estimate by maximising the posterior log-probability
     """
     initial_guess_dict = {
-        'ln_ne_bspline_basis': full(6, fill_value=log(5e19)),
-        'ln_te_bspline_basis': full(6, fill_value=log(100.)),
-        'z_eff_cubic_spline': full(6, fill_value=1.2),
+        'ln_ne_bspline_basis': full(ts_knots.size, fill_value=log(5e19)),
+        'ln_te_bspline_basis': full(ts_knots.size, fill_value=log(100.)),
+        'z_eff_cubic_spline': full(z_eff_knots.size, fill_value=1.2),
     }
     initial_guess_array = PlasmaState.merge_parameters(initial_guess_dict)
 
@@ -127,13 +127,18 @@ if __name__ == "__main__":
 
 
     from midas import posterior
-    from scipy.optimize import minimize
+    from scipy.optimize import minimize, approx_fprime
+
+    numgrad = approx_fprime(f=posterior.log_probability, xk=initial_guess_array)
+    print(numgrad)
+    print(posterior.gradient(initial_guess_array))
 
     opt_result = minimize(
         fun=posterior.cost,
         x0=initial_guess_array,
         method='L-BFGS-B',
         bounds=bounds,
+        jac=posterior.cost_gradient,
     )
 
 
@@ -166,7 +171,7 @@ if __name__ == "__main__":
     ax3.plot(measurement_radius, map_predictions["brem_diagnostic"], c="green", lw=2)
     ax3.errorbar(measurement_radius, brem_measurements, yerr=brem_sigma, **data_style)
     ax3.set_xlabel("Radius (m)")
-    ax3.set_ylabel("Electron temperature (eV)")
+    ax3.set_ylabel("Z-effective")
     ax3.grid()
 
     fig.tight_layout()
@@ -176,34 +181,28 @@ if __name__ == "__main__":
     """
     Use MCMC to sample from the posterior distribution
     """
-    from inference.mcmc import EnsembleSampler
-    from inference.approx import conditional_sample
+    from inference.mcmc import HamiltonianChain
+    from inference.approx import conditional_moments
 
-    walker_starts = conditional_sample(
+    _, conditional_variance = conditional_moments(
         posterior=posterior.log_probability,
         conditioning_point=opt_result.x,
-        n_samples=1000,
         bounds=[b for b in bounds],
     )
 
-    chain = EnsembleSampler(
+    chain = HamiltonianChain(
         posterior=posterior.log_probability,
-        starting_positions=walker_starts,
+        grad=posterior.gradient,
+        start=opt_result.x,
+        inverse_mass=conditional_variance,
         bounds=(bounds[:, 0], bounds[:, 1]),
+        epsilon=0.25
     )
 
-    chain.advance(40)
-    chain.plot_diagnostics()
+    chain.advance(5000)
     chain.trace_plot()
-
-    chain.matrix_plot(burn=20000, plot_style="histogram")
-
-
-    sample = chain.get_sample(burn=20000, thin=3)
-
-
-
-
+    chain.plot_diagnostics()
+    sample = chain.get_sample(burn=1000, thin=2)
 
 
 
@@ -225,10 +224,24 @@ if __name__ == "__main__":
 
 
     z_eff_mean = z_eff_profiles.mean(axis=0)
-    z_eff_std = z_eff_profiles.std(axis=0)
-    plt.plot(profile_axis, z_eff_mean, lw=2, color="green")
-    plt.fill_between(profile_axis, z_eff_mean - 2*z_eff_std, z_eff_mean + 2*z_eff_std, alpha=0.2, color="green")
+
+    from inference.pdf import sample_hdi
+    from synthetic_data import z_eff_profile
+
+    z_eff_lwr_95, z_eff_upr_95 = sample_hdi(z_eff_profiles, fraction=0.95)
+    z_eff_lwr_65, z_eff_upr_65 = sample_hdi(z_eff_profiles, fraction=0.65)
+
+    plt.plot(measurement_radius, z_eff_profile, lw=2, color="black", ls="dashed", label="true Z-eff")
+    plt.plot(profile_axis, z_eff_mean, lw=2, color="green", label="mean inferred Z-eff")
+    plt.fill_between(profile_axis, z_eff_lwr_65, z_eff_upr_65, alpha=0.35, color="green", label="65% HDI")
+    plt.fill_between(profile_axis, z_eff_lwr_95, z_eff_lwr_65, alpha=0.15, color="green", label="95% HDI")
+    plt.fill_between(profile_axis, z_eff_upr_65, z_eff_upr_95, alpha=0.15, color="green")
+    plt.xlabel("Radius (m)")
+    plt.ylabel("Z-effective")
+    plt.ylim([1.0, 4.0])
+    plt.xlim([1.25, 1.5])
     plt.grid()
+    plt.legend()
     plt.tight_layout()
     plt.show()
 
