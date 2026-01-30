@@ -1,7 +1,6 @@
 from numpy import linspace, exp, ndarray
 from numpy.random import default_rng
-import matplotlib.pyplot as plt
-from z_eff import BremsstrahlungModel
+from diagnostics import BremsstrahlungModel
 
 
 def logistic(x, w, c):
@@ -43,28 +42,7 @@ ne_profile = mtanh(
     theta=[1.385, 5e19, 0.03, 100., 7e17]
 )
 
-
-
 z_eff_profile = 2. + logistic(x=measurement_radius, c=1.5, w=0.035)
-
-fig = plt.figure(figsize=(10, 4))
-ax1 = fig.add_subplot(1, 3, 1)
-ax2 = fig.add_subplot(1, 3, 2)
-ax3 = fig.add_subplot(1, 3, 3)
-
-ax1.plot(measurement_radius, te_profile)
-ax2.plot(measurement_radius, ne_profile)
-ax3.plot(measurement_radius, z_eff_profile)
-
-ax1.grid()
-ax2.grid()
-ax3.grid()
-
-fig.tight_layout()
-plt.show()
-
-
-
 
 
 measurement_radius = linspace(1.25, 1.5, 26)
@@ -86,10 +64,8 @@ brem_sigma = brem_predictions * 0.05 + brem_predictions.max()*0.01
 brem_measurements = brem_predictions + rng.normal(scale=brem_sigma)
 
 
+te_sigma = te_profile * 0.05 + te_profile.max()*0.01
+te_measurements = te_profile + rng.normal(scale=te_sigma)
 
-
-plt.plot(measurement_radius, brem_predictions, "--")
-plt.plot(measurement_radius, brem_measurements, "o")
-plt.grid()
-plt.tight_layout()
-plt.show()
+ne_sigma = ne_profile * 0.05 + ne_profile.max()*0.01
+ne_measurements = ne_profile + rng.normal(scale=ne_sigma)

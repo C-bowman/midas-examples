@@ -1,7 +1,10 @@
 from midas.likelihoods import DiagnosticLikelihood
 from midas.likelihoods import GaussianLikelihood
-from diagnostics import BremsstrahlungModel, ThomsonTempModel, ThomsonDensityModel
+from diagnostics import BremsstrahlungModel, ThomsonModel
+
 from synthetic_data import measurement_radius, brem_measurements, brem_sigma
+from synthetic_data import te_measurements, te_sigma, ne_measurements, ne_sigma
+from numpy import full, log
 
 
 if __name__ == "__main__":
@@ -22,50 +25,181 @@ if __name__ == "__main__":
 
     brem_diagnostic = DiagnosticLikelihood(
         likelihood=brem_likelihood,
-        diagnostic_model=brem_model
+        diagnostic_model=brem_model,
+        name="brem_diagnostic"
     )
+
+
+    """
+    Build the Te profile diagnostic
+    """
+    te_likelihood = GaussianLikelihood(
+        y_data=te_measurements,
+        sigma=te_sigma,
+    )
+
+    te_model = ThomsonModel(
+        radius=measurement_radius,
+        field="te"
+    )
+
+    te_diagnostic = DiagnosticLikelihood(
+        likelihood=te_likelihood,
+        diagnostic_model=te_model,
+        name="te_diagnostic"
+    )
+
+
+    """
+    Build the ne profile diagnostic
+    """
+    ne_likelihood = GaussianLikelihood(
+        y_data=ne_measurements,
+        sigma=ne_sigma,
+    )
+
+    ne_model = ThomsonModel(
+        radius=measurement_radius,
+        field="ne"
+    )
+
+    ne_diagnostic = DiagnosticLikelihood(
+        likelihood=ne_likelihood,
+        diagnostic_model=ne_model,
+        name="ne_diagnostic"
+    )
+
 
 
     """
     Build the field models
     """
     from numpy import linspace
-    from fields import CubicProfile
+    from midas.models.fields import ExSplineField, CubicSplineField
 
 
     spline_knots = linspace(1.25, 1.5, 6)
-    ne_field = CubicProfile(
-        xknots=spline_knots,
-        name="ne",
-        axis_name="radius"
+    ne_field = ExSplineField(
+        field_name="ne",
+        axis_name="radius",
+        axis=spline_knots,
     )
 
-    te_field = CubicProfile(
-        xknots=spline_knots,
-        name="ne",
-        axis_name="radius"
+    te_field = ExSplineField(
+        field_name="te",
+        axis_name="radius",
+        axis=spline_knots,
     )
 
-    z_eff_field = PiecewiseLinearField(
+    z_eff_field = CubicSplineField(
         field_name="z_eff",
-        axis=...,
+        axis=spline_knots,
         axis_name="radius"
     )
-
-
-
-
 
 
 
     from midas import PlasmaState
     PlasmaState.build_posterior(
-        diagnostics=[brem_diagnostic],
+        diagnostics=[brem_diagnostic, te_diagnostic, ne_diagnostic],
         priors=[],
         field_models=[te_field, ne_field, z_eff_field]
     )
 
+
+
+    """
+    Find MAP estimate by maximising the posterior log-probability
+    """
+    initial_guess_dict = {
+        'ln_ne_bspline_basis': full(6, fill_value=log(5e19)),
+        'ln_te_bspline_basis': full(6, fill_value=log(100.)),
+        'z_eff_cubic_spline': full(6, fill_value=1.2),
+    }
+    initial_guess_array = PlasmaState.merge_parameters(initial_guess_dict)
+
+    bounds_dict = {
+        'ln_ne_bspline_basis': (log(1e16), log(1e21)),
+        'ln_te_bspline_basis': (log(0.1), log(1000)),
+        'z_eff_cubic_spline': (1.0, 5.0),
+    }
+    bounds = PlasmaState.build_bounds(bounds_dict)
+
+
     from midas import posterior
+    from scipy.optimize import minimize
+
+    opt_result = minimize(
+        fun=posterior.cost,
+        x0=initial_guess_array,
+        method='L-BFGS-B',
+        bounds=bounds,
+    )
+
+
+
+
+    """
+    Plot the data predictions based on the MAP estimate
+    """
+    map_predictions = posterior.get_model_predictions(opt_result.x)
+    import matplotlib.pyplot as plt
+    fig = plt.figure(figsize=(12, 4))
+    ax1 = fig.add_subplot(1, 3, 1)
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax3 = fig.add_subplot(1, 3, 3)
+
+    data_style = dict(marker="o", linestyle="none", markerfacecolor="none", color="black")
+
+    ax1.plot(measurement_radius, map_predictions["ne_diagnostic"], color="blue", lw=2)
+    ax1.errorbar(measurement_radius, ne_measurements, yerr=ne_sigma, **data_style)
+    ax1.set_xlabel("Radius (m)")
+    ax1.set_ylabel("Electron density (m^-3)")
+    ax1.grid()
+
+    ax2.plot(measurement_radius, map_predictions["te_diagnostic"], color="red", lw=2)
+    ax2.errorbar(measurement_radius, te_measurements, yerr=te_sigma, **data_style)
+    ax2.set_xlabel("Radius (m)")
+    ax2.set_ylabel("Electron temperature (eV)")
+    ax2.grid()
+
+    ax3.plot(measurement_radius, map_predictions["brem_diagnostic"], c="green", lw=2)
+    ax3.errorbar(measurement_radius, brem_measurements, yerr=brem_sigma, **data_style)
+    ax3.set_xlabel("Radius (m)")
+    ax3.set_ylabel("Electron temperature (eV)")
+    ax3.grid()
+
+    fig.tight_layout()
+    plt.show()
+
+
+    """
+    Use MCMC to sample from the posterior distribution
+    """
+    from inference.mcmc import EnsembleSampler
+    from inference.approx import conditional_sample
+
+    walker_starts = conditional_sample(
+        posterior=posterior.log_probability,
+        conditioning_point=opt_result.x,
+        n_samples=1000,
+        bounds=[b for b in bounds],
+    )
+
+    chain = EnsembleSampler(
+        posterior=posterior.log_probability,
+        starting_positions=walker_starts,
+        bounds=(bounds[:, 0], bounds[:, 1]),
+    )
+
+    chain.advance(40)
+    chain.plot_diagnostics()
+    chain.trace_plot()
+
+    chain.matrix_plot(burn=20000, plot_style="histogram")
+
+
+    sample = chain.get_sample(burn=20000, thin=3)
 
 
 
@@ -74,7 +208,29 @@ if __name__ == "__main__":
 
 
 
+    from numpy import array
+    from midas import FieldRequest
+    profile_axis = linspace(1.25, 1.5, 128)
+    z_eff_request = FieldRequest("z_eff", coordinates={"radius": profile_axis})
 
+    z_eff_profiles = []
+    for theta in sample:
+        param_dict = PlasmaState.split_parameters(theta)
+        z_eff_vals = z_eff_field.get_values(
+            parameters=param_dict,
+            field=z_eff_request,
+        )
+        z_eff_profiles.append(z_eff_vals)
+    z_eff_profiles = array(z_eff_profiles)
+
+
+    z_eff_mean = z_eff_profiles.mean(axis=0)
+    z_eff_std = z_eff_profiles.std(axis=0)
+    plt.plot(profile_axis, z_eff_mean, lw=2, color="green")
+    plt.fill_between(profile_axis, z_eff_mean - 2*z_eff_std, z_eff_mean + 2*z_eff_std, alpha=0.2, color="green")
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
 
 
 
