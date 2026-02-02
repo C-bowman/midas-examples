@@ -1,3 +1,4 @@
+from midas import FieldRequest
 from midas.likelihoods import DiagnosticLikelihood
 from midas.likelihoods import GaussianLikelihood
 from diagnostics import BremsstrahlungModel, ThomsonModel
@@ -77,7 +78,7 @@ if __name__ == "__main__":
     from numpy import linspace
     from midas.models.fields import ExSplineField, CubicSplineField
 
-    ts_knots = linspace(1.25, 1.5, 6)
+    ts_knots = linspace(1.25, 1.5, 12)
     ne_field = ExSplineField(
         field_name="ne",
         axis_name="radius",
@@ -97,12 +98,45 @@ if __name__ == "__main__":
         axis_name="radius"
     )
 
+    from midas.priors import SoftLimitPrior
+    from midas.operators import derivative_operator
+    te_request = FieldRequest(name="te", coordinates={"radius": measurement_radius})
+    ne_request = FieldRequest(name="ne", coordinates={"radius": measurement_radius})
+    zeff_request = FieldRequest(name="z_eff", coordinates={"radius": measurement_radius})
+    operator = derivative_operator(measurement_radius, order=1)
+
+    te_monotonicity_prior = SoftLimitPrior(
+        name="te_monotonicity_prior",
+        field_request=te_request,
+        upper_limit=0.0,
+        sigma=30.,
+        operator=operator
+    )
+
+    ne_monotonicity_prior = SoftLimitPrior(
+        name="ne_monotonicity_prior",
+        field_request=ne_request,
+        upper_limit=0.0,
+        sigma=1e19,
+        operator=operator
+    )
+
+    zeff_monotonicity_prior = SoftLimitPrior(
+        name="zeff_monotonicity_prior",
+        field_request=zeff_request,
+        upper_limit=0.0,
+        sigma=1.0,
+        operator=-operator
+    )
 
 
-    from midas import PlasmaState
+
+    from midas import PlasmaState, Parameters
+
     PlasmaState.build_posterior(
         diagnostics=[brem_diagnostic, te_diagnostic, ne_diagnostic],
-        priors=[],
+        priors=[te_monotonicity_prior, ne_monotonicity_prior, zeff_monotonicity_prior],
+        # priors=[zeff_monotonicity_prior],
         field_models=[te_field, ne_field, z_eff_field]
     )
 
@@ -113,14 +147,14 @@ if __name__ == "__main__":
     """
     initial_guess_dict = {
         'ln_ne_bspline_basis': full(ts_knots.size, fill_value=log(5e19)),
-        'ln_te_bspline_basis': full(ts_knots.size, fill_value=log(100.)),
+        'ln_te_bspline_basis': full(ts_knots.size, fill_value=log(60.)),
         'z_eff_cubic_spline': full(z_eff_knots.size, fill_value=1.2),
     }
     initial_guess_array = PlasmaState.merge_parameters(initial_guess_dict)
 
     bounds_dict = {
-        'ln_ne_bspline_basis': (log(1e16), log(1e21)),
-        'ln_te_bspline_basis': (log(0.1), log(1000)),
+        'ln_ne_bspline_basis': (log(1e17), log(1e21)),
+        'ln_te_bspline_basis': (log(2), log(1000)),
         'z_eff_cubic_spline': (1.0, 5.0),
     }
     bounds = PlasmaState.build_bounds(bounds_dict)
@@ -130,8 +164,7 @@ if __name__ == "__main__":
     from scipy.optimize import minimize, approx_fprime
 
     numgrad = approx_fprime(f=posterior.log_probability, xk=initial_guess_array)
-    print(numgrad)
-    print(posterior.gradient(initial_guess_array))
+    print(posterior.gradient(initial_guess_array) / numgrad)
 
     opt_result = minimize(
         fun=posterior.cost,
@@ -202,7 +235,7 @@ if __name__ == "__main__":
     chain.advance(5000)
     chain.trace_plot()
     chain.plot_diagnostics()
-    sample = chain.get_sample(burn=1000, thin=2)
+    sample = chain.get_sample(burn=1000, thin=1)
 
 
 

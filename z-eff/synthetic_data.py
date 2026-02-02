@@ -34,7 +34,7 @@ def mtanh(radius: ndarray, theta: ndarray, drn=-1.0) -> ndarray:
 measurement_radius = linspace(1.25, 1.5, 26)
 te_profile = mtanh(
     radius=measurement_radius,
-    theta=[1.38, 120., 0.03, 1000., 5.]
+    theta=[1.38, 120., 0.04, 1000., 5.]
 )
 
 ne_profile = mtanh(
@@ -58,7 +58,8 @@ brem_predictions = brem_model.predictions(
     z_eff=z_eff_profile
 )
 
-rng = default_rng(321)
+# 77
+rng = default_rng(234)
 
 brem_sigma = brem_predictions * 0.05 + brem_predictions.max()*0.01
 brem_measurements = brem_predictions + rng.normal(scale=brem_sigma)
