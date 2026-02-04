@@ -31,21 +31,21 @@ def mtanh(radius: ndarray, theta: ndarray, drn=-1.0) -> ndarray:
 
 
 
-measurement_radius = linspace(1.25, 1.5, 26)
+measurement_radius = linspace(0.9, 1.35, 50)
+
 te_profile = mtanh(
     radius=measurement_radius,
-    theta=[1.38, 120., 0.04, 1000., 5.]
-)
+    theta=[1.38, 120., 0.04, 100., 5.]
+) + 400 * exp(-0.5 * ((measurement_radius - 0.9) / 0.3)**4)
+
 
 ne_profile = mtanh(
     radius=measurement_radius,
-    theta=[1.385, 5e19, 0.03, 100., 1e18]
-)
+    theta=[1.385, 5e19, 0.03, -2e19, 1e18]
+) + 2e19 * exp(-0.5 * ((measurement_radius - 0.87) / 0.15)**2)
 
-z_eff_profile = 2. + logistic(x=measurement_radius, c=1.5, w=0.035)
+z_eff_profile = 2. + logistic(x=measurement_radius, c=1.5, w=0.035) + exp(-0.5 * ((measurement_radius - 0.9) / 0.15)**2)
 
-
-measurement_radius = linspace(1.25, 1.5, 26)
 
 brem_model = BremsstrahlungModel(
     radius=measurement_radius,
@@ -59,14 +59,43 @@ brem_predictions = brem_model.predictions(
 )
 
 # 77
-rng = default_rng(234)
+rng = default_rng(236)
 
 brem_sigma = brem_predictions * 0.05 + brem_predictions.max()*0.01
 brem_measurements = brem_predictions + rng.normal(scale=brem_sigma)
 
 
-te_sigma = te_profile * 0.05 + te_profile.max()*0.01
+te_sigma = te_profile * 0.05 + 1.0
 te_measurements = te_profile + rng.normal(scale=te_sigma)
 
-ne_sigma = ne_profile * 0.05 + ne_profile.max()*0.01
+ne_sigma = ne_profile * 0.04 + 0.5e18
 ne_measurements = ne_profile + rng.normal(scale=ne_sigma)
+
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+
+    fig = plt.figure(figsize=(12, 4))
+    ax1 = fig.add_subplot(1, 3, 1)
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax3 = fig.add_subplot(1, 3, 3)
+
+    ax1.plot(measurement_radius, te_profile)
+    ax1.plot(measurement_radius, te_measurements, ".")
+    ax1.set_ylim([0, None])
+    ax1.grid()
+
+    ax2.plot(measurement_radius, ne_profile)
+    ax2.plot(measurement_radius, ne_measurements, ".")
+    ax2.set_ylim([0, None])
+    ax2.grid()
+
+    ax3.plot(measurement_radius, brem_predictions)
+    ax3.plot(measurement_radius, brem_measurements, ".")
+    ax3.set_ylim([0, None])
+    ax3.grid()
+
+    fig.tight_layout()
+    plt.show()

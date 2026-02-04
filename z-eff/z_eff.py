@@ -78,7 +78,7 @@ if __name__ == "__main__":
     from numpy import linspace
     from midas.models.fields import ExSplineField, CubicSplineField
 
-    ts_knots = linspace(1.25, 1.5, 12)
+    ts_knots = linspace(0.9, 1.35, 8)
     ne_field = ExSplineField(
         field_name="ne",
         axis_name="radius",
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         axis=ts_knots,
     )
 
-    z_eff_knots = linspace(1.25, 1.5, 5)
+    z_eff_knots = linspace(0.9, 1.35, 6)
     z_eff_field = CubicSplineField(
         field_name="z_eff",
         axis=z_eff_knots,
@@ -135,7 +135,7 @@ if __name__ == "__main__":
 
     PlasmaState.build_posterior(
         diagnostics=[brem_diagnostic, te_diagnostic, ne_diagnostic],
-        priors=[te_monotonicity_prior, ne_monotonicity_prior, zeff_monotonicity_prior],
+        priors=[te_monotonicity_prior],
         # priors=[zeff_monotonicity_prior],
         field_models=[te_field, ne_field, z_eff_field]
     )
@@ -242,7 +242,7 @@ if __name__ == "__main__":
 
     from numpy import array
     from midas import FieldRequest
-    profile_axis = linspace(1.25, 1.5, 128)
+    profile_axis = linspace(0.9, 1.35, 128)
     z_eff_request = FieldRequest("z_eff", coordinates={"radius": profile_axis})
 
     z_eff_profiles = []
@@ -271,8 +271,8 @@ if __name__ == "__main__":
     plt.fill_between(profile_axis, z_eff_upr_65, z_eff_upr_95, alpha=0.15, color="green")
     plt.xlabel("Radius (m)")
     plt.ylabel("Z-effective")
-    plt.ylim([1.0, 4.0])
-    plt.xlim([1.25, 1.5])
+    # plt.ylim([1.0, 4.0])
+    plt.xlim([0.9, 1.35])
     plt.grid()
     plt.legend()
     plt.tight_layout()
