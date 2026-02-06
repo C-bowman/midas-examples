@@ -107,7 +107,7 @@ if __name__ == "__main__":
         name="te_monotonicity_prior",
         field_request=te_request,
         upper_limit=0.0,
-        sigma=30.,
+        standard_deviation=30.,
         operator=operator
     )
 
@@ -212,6 +212,7 @@ if __name__ == "__main__":
         bounds=(bounds[:, 0], bounds[:, 1]),
         epsilon=0.25
     )
+    chain.steps=30
 
     chain.advance(5000)
     chain.trace_plot()
