@@ -78,7 +78,7 @@ if __name__ == "__main__":
     from numpy import linspace
     from midas.models.fields import ExSplineField, CubicSplineField
 
-    ts_knots = linspace(0.9, 1.35, 8)
+    ts_knots = linspace(0.9, 1.35, 6)
     ne_field = ExSplineField(
         field_name="ne",
         axis_name="radius",
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         axis=ts_knots,
     )
 
-    z_eff_knots = linspace(0.9, 1.35, 6)
+    z_eff_knots = linspace(0.9, 1.35, 5)
     z_eff_field = CubicSplineField(
         field_name="z_eff",
         axis=z_eff_knots,
@@ -101,8 +101,6 @@ if __name__ == "__main__":
     from midas.priors import SoftLimitPrior
     from midas.operators import derivative_operator
     te_request = FieldRequest(name="te", coordinates={"radius": measurement_radius})
-    ne_request = FieldRequest(name="ne", coordinates={"radius": measurement_radius})
-    zeff_request = FieldRequest(name="z_eff", coordinates={"radius": measurement_radius})
     operator = derivative_operator(measurement_radius, order=1)
 
     te_monotonicity_prior = SoftLimitPrior(
@@ -113,22 +111,6 @@ if __name__ == "__main__":
         operator=operator
     )
 
-    ne_monotonicity_prior = SoftLimitPrior(
-        name="ne_monotonicity_prior",
-        field_request=ne_request,
-        upper_limit=0.0,
-        sigma=1e19,
-        operator=operator
-    )
-
-    zeff_monotonicity_prior = SoftLimitPrior(
-        name="zeff_monotonicity_prior",
-        field_request=zeff_request,
-        upper_limit=0.0,
-        sigma=1.0,
-        operator=-operator
-    )
-
 
 
     from midas import PlasmaState, Parameters
@@ -136,7 +118,6 @@ if __name__ == "__main__":
     PlasmaState.build_posterior(
         diagnostics=[brem_diagnostic, te_diagnostic, ne_diagnostic],
         priors=[te_monotonicity_prior],
-        # priors=[zeff_monotonicity_prior],
         field_models=[te_field, ne_field, z_eff_field]
     )
 
@@ -239,42 +220,65 @@ if __name__ == "__main__":
 
 
 
+    test = posterior.sample_model_predictions(sample)
+    from inference.plotting import hdi_plot
 
-    from numpy import array
+
+
     from midas import FieldRequest
     profile_axis = linspace(0.9, 1.35, 128)
-    z_eff_request = FieldRequest("z_eff", coordinates={"radius": profile_axis})
 
-    z_eff_profiles = []
-    for theta in sample:
-        param_dict = PlasmaState.split_parameters(theta)
-        z_eff_vals = z_eff_field.get_values(
-            parameters=param_dict,
-            field=z_eff_request,
-        )
-        z_eff_profiles.append(z_eff_vals)
-    z_eff_profiles = array(z_eff_profiles)
+    te_profiles = posterior.sample_field_values(
+        parameter_samples=sample,
+        field_request=FieldRequest("te", coordinates={"radius": profile_axis}),
+    )
+
+    ne_profiles = posterior.sample_field_values(
+        parameter_samples=sample,
+        field_request=FieldRequest("ne", coordinates={"radius": profile_axis}),
+    )
+
+    z_eff_profiles = posterior.sample_field_values(
+        parameter_samples=sample,
+        field_request=FieldRequest("z_eff", coordinates={"radius": profile_axis}),
+    )
 
 
-    z_eff_mean = z_eff_profiles.mean(axis=0)
 
-    from inference.pdf import sample_hdi
-    from synthetic_data import z_eff_profile
 
-    z_eff_lwr_95, z_eff_upr_95 = sample_hdi(z_eff_profiles, fraction=0.95)
-    z_eff_lwr_65, z_eff_upr_65 = sample_hdi(z_eff_profiles, fraction=0.65)
+    from synthetic_data import z_eff_profile, te_profile, ne_profile
 
-    plt.plot(measurement_radius, z_eff_profile, lw=2, color="black", ls="dashed", label="true Z-eff")
-    plt.plot(profile_axis, z_eff_mean, lw=2, color="green", label="mean inferred Z-eff")
-    plt.fill_between(profile_axis, z_eff_lwr_65, z_eff_upr_65, alpha=0.35, color="green", label="65% HDI")
-    plt.fill_between(profile_axis, z_eff_lwr_95, z_eff_lwr_65, alpha=0.15, color="green", label="95% HDI")
-    plt.fill_between(profile_axis, z_eff_upr_65, z_eff_upr_95, alpha=0.15, color="green")
-    plt.xlabel("Radius (m)")
-    plt.ylabel("Z-effective")
-    # plt.ylim([1.0, 4.0])
-    plt.xlim([0.9, 1.35])
-    plt.grid()
-    plt.legend()
+    fig = plt.figure(figsize=(12, 4))
+    ax1 = fig.add_subplot(1, 3, 1)
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax3 = fig.add_subplot(1, 3, 3)
+
+    ax1.plot(measurement_radius, te_profile, lw=2, color="black", ls="dashed", label=r"true $T_e$")
+    hdi_plot(profile_axis, te_profiles, axis=ax1, color="red")
+    ax1.set_xlabel("Radius (m)")
+    ax1.set_ylabel("electron temperature (eV)")
+    ax1.set_xlim([0.9, 1.35])
+    ax1.grid()
+    ax1.legend()
+
+
+    ax2.plot(measurement_radius, ne_profile, lw=2, color="black", ls="dashed", label=r"true $n_e$")
+    hdi_plot(profile_axis, ne_profiles, axis=ax2, color="C0")
+    ax2.set_xlabel("Radius (m)")
+    ax2.set_ylabel("electron density (m^-3)")
+    ax2.set_xlim([0.9, 1.35])
+    ax2.grid()
+    ax2.legend()
+
+
+    ax3.plot(measurement_radius, z_eff_profile, lw=2, color="black", ls="dashed", label="true Z-eff")
+    hdi_plot(profile_axis, z_eff_profiles, axis=ax3, color="green", intervals=[0.9, 0.5])
+    ax3.set_xlabel("Radius (m)")
+    ax3.set_ylabel("Z-effective")
+    ax3.set_xlim([0.9, 1.35])
+    ax3.grid()
+    ax3.legend()
+
     plt.tight_layout()
     plt.show()
 
