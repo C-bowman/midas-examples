@@ -58,7 +58,6 @@ brem_predictions = brem_model.predictions(
     z_eff=z_eff_profile
 )
 
-# 77
 rng = default_rng(236)
 
 brem_sigma = brem_predictions * 0.05 + brem_predictions.max()*0.01

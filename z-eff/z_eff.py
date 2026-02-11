@@ -3,8 +3,8 @@ from midas.likelihoods import DiagnosticLikelihood
 from midas.likelihoods import GaussianLikelihood
 from diagnostics import BremsstrahlungModel, ThomsonModel
 
-from synthetic_data import measurement_radius, brem_measurements, brem_sigma
-from synthetic_data import te_measurements, te_sigma, ne_measurements, ne_sigma
+from example_data import measurement_radius, brem_measurements, brem_sigma
+from example_data import te_measurements, te_sigma, ne_measurements, ne_sigma
 from numpy import full, log
 
 
@@ -247,7 +247,7 @@ if __name__ == "__main__":
 
 
 
-    from synthetic_data import z_eff_profile, te_profile, ne_profile
+    from example_data import z_eff_profile, te_profile, ne_profile
 
     fig = plt.figure(figsize=(12, 4))
     ax1 = fig.add_subplot(1, 3, 1)
