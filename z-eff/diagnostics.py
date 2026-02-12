@@ -153,7 +153,7 @@ def bremsstrahlung_jacobian(
     zeff: ndarray,
     wavelength: float,
     gaunt_approx="callahan",
-) -> tuple[ndarray, dict[str, ndarray]]:
+) -> tuple[ndarray, ...]:
 
     # get the gaunt factor and its derivative
     gaunt_funct = {
@@ -182,13 +182,7 @@ def bremsstrahlung_jacobian(
     dE_dN = 2 * zeff * intermed
     bremstrahl = dE_dz * zeff
 
-    jacobian = {
-        "te": diagflat(dE_dT),
-        "ne": diagflat(dE_dN),
-        "z_eff": diagflat(dE_dz),
-    }
-
-    return bremstrahl, jacobian
+    return bremstrahl, diagflat(dE_dT), diagflat(dE_dN), diagflat(dE_dz)
 
 
 if __name__ == "__main__":

@@ -30,7 +30,6 @@ if __name__ == "__main__":
         name="brem_diagnostic"
     )
 
-
     """
     Build the Te profile diagnostic
     """
@@ -50,7 +49,6 @@ if __name__ == "__main__":
         name="te_diagnostic"
     )
 
-
     """
     Build the ne profile diagnostic
     """
@@ -69,8 +67,6 @@ if __name__ == "__main__":
         diagnostic_model=ne_model,
         name="ne_diagnostic"
     )
-
-
 
     """
     Build the field models
@@ -111,8 +107,6 @@ if __name__ == "__main__":
         operator=operator
     )
 
-
-
     from midas import PlasmaState, Parameters
 
     PlasmaState.build_posterior(
@@ -120,8 +114,6 @@ if __name__ == "__main__":
         priors=[te_monotonicity_prior],
         field_models=[te_field, ne_field, z_eff_field]
     )
-
-
 
     """
     Find MAP estimate by maximising the posterior log-probability
@@ -140,7 +132,6 @@ if __name__ == "__main__":
     }
     bounds = PlasmaState.build_bounds(bounds_dict)
 
-
     from midas import posterior
     from scipy.optimize import minimize, approx_fprime
 
@@ -154,9 +145,6 @@ if __name__ == "__main__":
         bounds=bounds,
         jac=posterior.cost_gradient,
     )
-
-
-
 
     """
     Plot the data predictions based on the MAP estimate
@@ -191,7 +179,6 @@ if __name__ == "__main__":
     fig.tight_layout()
     plt.show()
 
-
     """
     Use MCMC to sample from the posterior distribution
     """
@@ -221,12 +208,6 @@ if __name__ == "__main__":
 
 
 
-    test = posterior.sample_model_predictions(sample)
-    from inference.plotting import hdi_plot
-
-
-
-    from midas import FieldRequest
     profile_axis = linspace(0.9, 1.35, 128)
 
     te_profiles = posterior.sample_field_values(
@@ -244,17 +225,16 @@ if __name__ == "__main__":
         field_request=FieldRequest("z_eff", coordinates={"radius": profile_axis}),
     )
 
+    from example_data import true_z_eff_profile, true_te_profile, true_ne_profile
+    from inference.plotting import hdi_plot
 
-
-
-    from example_data import z_eff_profile, te_profile, ne_profile
 
     fig = plt.figure(figsize=(12, 4))
     ax1 = fig.add_subplot(1, 3, 1)
     ax2 = fig.add_subplot(1, 3, 2)
     ax3 = fig.add_subplot(1, 3, 3)
 
-    ax1.plot(measurement_radius, te_profile, lw=2, color="black", ls="dashed", label=r"true $T_e$")
+    ax1.plot(measurement_radius, true_te_profile, lw=2, color="black", ls="dashed", label=r"true $T_e$")
     hdi_plot(profile_axis, te_profiles, axis=ax1, color="red")
     ax1.set_xlabel("Radius (m)")
     ax1.set_ylabel("electron temperature (eV)")
@@ -262,8 +242,7 @@ if __name__ == "__main__":
     ax1.grid()
     ax1.legend()
 
-
-    ax2.plot(measurement_radius, ne_profile, lw=2, color="black", ls="dashed", label=r"true $n_e$")
+    ax2.plot(measurement_radius, true_ne_profile, lw=2, color="black", ls="dashed", label=r"true $n_e$")
     hdi_plot(profile_axis, ne_profiles, axis=ax2, color="C0")
     ax2.set_xlabel("Radius (m)")
     ax2.set_ylabel("electron density (m^-3)")
@@ -271,8 +250,7 @@ if __name__ == "__main__":
     ax2.grid()
     ax2.legend()
 
-
-    ax3.plot(measurement_radius, z_eff_profile, lw=2, color="black", ls="dashed", label="true Z-eff")
+    ax3.plot(measurement_radius, true_z_eff_profile, lw=2, color="black", ls="dashed", label="true Z-eff")
     hdi_plot(profile_axis, z_eff_profiles, axis=ax3, color="green", intervals=[0.9, 0.5])
     ax3.set_xlabel("Radius (m)")
     ax3.set_ylabel("Z-effective")
@@ -282,20 +260,3 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
