@@ -30,7 +30,9 @@ def mtanh(radius: ndarray, theta: ndarray, drn=-1.0) -> ndarray:
     return (G / iL) + b
 
 
-
+"""
+Generate 'true' profiles of the fields we want to infer
+"""
 measurement_radius = linspace(0.9, 1.35, 50)
 
 true_te_profile = mtanh(
@@ -47,6 +49,9 @@ true_ne_profile = mtanh(
 true_z_eff_profile = 2. + logistic(x=measurement_radius, c=1.5, w=0.035) + exp(-0.5 * ((measurement_radius - 0.9) / 0.15) ** 2)
 
 
+"""
+Set up the model for the bremsstrahlung and generate diagnostic predictions
+"""
 brem_model = BremsstrahlungModel(
     radius=measurement_radius,
     wavelength=569e-9,
@@ -58,11 +63,14 @@ brem_predictions = brem_model.predictions(
     z_eff=true_z_eff_profile
 )
 
+
+"""
+Add sampled noise to the diagnostic predictions to generate synthetic data
+"""
 rng = default_rng(236)
 
 brem_sigma = brem_predictions * 0.05 + brem_predictions.max()*0.01
 brem_measurements = brem_predictions + rng.normal(scale=brem_sigma)
-
 
 te_sigma = true_te_profile * 0.05 + 1.0
 te_measurements = true_te_profile + rng.normal(scale=te_sigma)
@@ -73,9 +81,8 @@ ne_measurements = true_ne_profile + rng.normal(scale=ne_sigma)
 
 
 if __name__ == "__main__":
+
     import matplotlib.pyplot as plt
-
-
     fig = plt.figure(figsize=(12, 4))
     ax1 = fig.add_subplot(1, 3, 1)
     ax2 = fig.add_subplot(1, 3, 2)

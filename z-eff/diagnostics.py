@@ -186,6 +186,9 @@ def bremsstrahlung_jacobian(
 
 
 if __name__ == "__main__":
+    """
+    tests for the bremsstrahlung model and its jacobians
+    """
     v1 = zeff_bremsstrahlung(Te=28.5, Ne=2.2e20, wavelength=567, zeff=2.12)
     v2 = bremsstrahlung_model(Te=28.5, Ne=2.2e20, wavelength=567e-9, zeff=2.12)
     print(v1, v2, v1 / v2)
@@ -206,13 +209,13 @@ if __name__ == "__main__":
     dN = Ne * eps
     dz = zeff * eps
 
-    dE_dT = 0.5 * (bremsstrahlung_model(Te + dT, Ne, zeff, wl) -  bremsstrahlung_model(Te - dT, Ne, zeff, wl)) / dT
-    dE_dN = 0.5 * (bremsstrahlung_model(Te, Ne + dN, zeff, wl) -  bremsstrahlung_model(Te, Ne - dN, zeff, wl)) / dN
-    dE_dz = 0.5 * (bremsstrahlung_model(Te, Ne, zeff + dz, wl) -  bremsstrahlung_model(Te, Ne, zeff - dz, wl)) / dz
+    dE_dT_fd = 0.5 * (bremsstrahlung_model(Te + dT, Ne, zeff, wl) -  bremsstrahlung_model(Te - dT, Ne, zeff, wl)) / dT
+    dE_dN_fd = 0.5 * (bremsstrahlung_model(Te, Ne + dN, zeff, wl) -  bremsstrahlung_model(Te, Ne - dN, zeff, wl)) / dN
+    dE_dz_fd = 0.5 * (bremsstrahlung_model(Te, Ne, zeff + dz, wl) -  bremsstrahlung_model(Te, Ne, zeff - dz, wl)) / dz
 
-    _, jac = bremsstrahlung_jacobian(Te, Ne, zeff, wl)
+    _, dE_dT, dE_dN, dE_dz = bremsstrahlung_jacobian(Te, Ne, zeff, wl)
 
     from numpy import allclose, diagonal
-    assert allclose(dE_dT, diagonal(jac["te"]))
-    assert allclose(dE_dN, diagonal(jac["ne"]))
-    assert allclose(dE_dz, diagonal(jac["z_eff"]))
+    assert allclose(dE_dT_fd, diagonal(dE_dT))
+    assert allclose(dE_dN_fd, diagonal(dE_dN))
+    assert allclose(dE_dz_fd, diagonal(dE_dz))
